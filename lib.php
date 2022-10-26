@@ -1,6 +1,57 @@
 <?php
 
 
+function getChangedNum($pdo,$changedpart){
+$res=0;
+
+if($changedpart == "SIP"){
+$stmt = $pdo->query("select count(*) as changed from extens where updated_at>subdate(now(),interval 100 second);");
+while ($row = $stmt->fetch()) {
+$res+=$row['changed'];
+}
+
+
+$stmt = $pdo->query("select count(*) as changed from sips where updated_at>subdate(now(),interval 100 second);");
+while ($row = $stmt->fetch()) {
+$res+=$row['changed'];
+}
+
+}
+
+if($changedpart == "ROUTES"){
+$stmt = $pdo->query("select count(*) as changed from routes where updated_at>subdate(now(),interval 100 second);");
+while ($row = $stmt->fetch()) {
+$res+=$row['changed'];
+}
+
+
+$stmt = $pdo->query("select count(*) as changed from steps where updated_at>subdate(now(),interval 100 second);");
+while ($row = $stmt->fetch()) {
+$res+=$row['changed'];
+}
+
+}
+
+
+if($changedpart == "VOICE"){
+$stmt = $pdo->query("select count(*) as changed from sounds where updated_at>subdate(now(),interval 100 second);");
+while ($row = $stmt->fetch()) {
+$res+=$row['changed'];
+}
+
+
+$stmt = $pdo->query("select count(*) as changed from mohs where updated_at>subdate(now(),interval 100 second);");
+while ($row = $stmt->fetch()) {
+$res+=$row['changed'];
+}
+
+}
+
+
+return $res;
+}
+
+
 function makeExten($pdo){
 $astbasedir="/root/pbxscripts/astconf/";
 $filename="extens.conf";
@@ -367,14 +418,22 @@ if($event=="Queue"){
 //$queuename=$account_id."_".$jsonsarr[0][1];
 $queuename=$jsonsarr[2][1];
 $queueoptions=$jsonsarr[1][1];
-$confstr.="exten => _$id,n,Macro(queue,$queuename,$queueoptions)\n";
+
+$stmtq = $pdo->prepare("select maxtime from hotlines where name=?;");
+$stmtq->execute([$queuename]);
+$rowq = $stmtq->fetch();
+$maxtime=$rowq['maxtime'];
+if($maxtime == 0){$maxtime="7200";}
+if(strlen($maxtime) == 0){$maxtime="7200";}
+
+$confstr.="exten => _$id,n,Macro(queue,$queuename,$queueoptions,$maxtime)\n";
 }
 
 
 if($event=="Dial"){
 $exten_num=$account_id.$jsonsarr[3][1];
 $dialtimeout=$jsonsarr[1][1];
-$dialoptions=$jsonsarr[1][1];
+$dialoptions=$jsonsarr[2][1];
 $confstr.="exten => _$id,n,Macro(dialexten,$exten_num,$dialtimeout,$dialoptions)\n";
 }
 
