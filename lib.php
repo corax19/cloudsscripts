@@ -51,6 +51,33 @@ $res+=$row['changed'];
 return $res;
 }
 
+function getCDRForRec($pdo){
+$res = 0;
+$stmt = $pdo->query("select id,concat('/var/www/html/records/',accountcode) as dir,concat('/var/www/html/records/',accountcode,'/',uniqueid,'.wav') as filesrc,concat('/var/www/html/records/',accountcode,'/',replace(substring(start,1,7),'-',''),'/',replace(substring(start,1,10),'-',''),'/',uniqueid,'.mp3') as filedst,concat('/var/www/html/records/',accountcode,'/',replace(substring(start,1,7),'-',''),'/',replace(substring(start,1,10),'-','')) as dirdst,concat('/var/www/html/records/',accountcode,'/',replace(substring(start,1,7),'-','')) as dirdst2  from cdrs where created_at>subdate(now(),interval 6 minute);");
+while ($row = $stmt->fetch()) {
+ $dir=$row['dir'];
+ $filesrc=$row['filesrc'];
+ $filedst=$row['filedst'];
+ $dirdst=$row['dirdst'];
+ $dirdst2=$row['dirdst2'];
+ if((is_file($filesrc))  && (!is_file($filedst))){
+  if(!is_dir($dirdst2)){mkdir($dirdst2);}
+  if(!is_dir($dirdst)){mkdir($dirdst);}
+  $cmd="/usr/bin/lame -h -b 16  \"".$filesrc."\" ".$filedst." &";
+  exec($cmd);
+  $cmd="/usr/bin/lame -h -b 16  \"".$filesrc."\" ".$filedst." &";
+  exec($cmd);
+  $cmd="rm -f \"".$filesrc."\"";system($cmd);
+ }
+}
+
+
+
+
+
+return $res;
+}
+
 
 function makeExten($pdo){
 $astbasedir="/root/pbxscripts/astconf/";

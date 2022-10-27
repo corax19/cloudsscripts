@@ -3,6 +3,8 @@
 include("dbconnect.php");
 include("lib.php");
 
+getCDRForRec($pdo);
+
 $sipnum=getChangedNum($pdo,"SIP");
 $routnum=getChangedNum($pdo,"ROUTES");
 $voicenum=getChangedNum($pdo,"VOICE");
