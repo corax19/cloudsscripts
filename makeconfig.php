@@ -3,27 +3,30 @@
 include("dbconnect.php");
 include("lib.php");
 
-getCDRForRec($pdo);
+$maxn = 0;
+if($argv[1] == "force" ){$maxn = -1;}
 
 $sipnum=getChangedNum($pdo,"SIP");
 $routnum=getChangedNum($pdo,"ROUTES");
 $voicenum=getChangedNum($pdo,"VOICE");
 
+getCDRForRec($pdo);
+
 echo "$sipnum $routnum $voicenum\n";
 
-if($voicenum >0){
+if($voicenum >$maxn){
 doSounds($pdo);
 doMOHDirs($pdo);
 system("/usr/sbin/asterisk -rx \"moh reload\"");
 }
 
-if($sipnum >0){
+if($sipnum >$maxn){
 makeExten($pdo);
 makeSIP($pdo);
 system("/usr/sbin/asterisk -rx \"sip reload\"");
 }
 
-if($routnum >0){
+if($routnum >$maxn){
 makeRoutes($pdo);
 system("/usr/sbin/asterisk -rx \"dialplan reload\"");
 }

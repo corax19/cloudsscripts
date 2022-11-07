@@ -5,27 +5,39 @@ function getChangedNum($pdo,$changedpart){
 $res=0;
 
 if($changedpart == "SIP"){
-$stmt = $pdo->query("select count(*) as changed from extens where updated_at>subdate(now(),interval 100 second);");
+$stmt = $pdo->query("select count(*) as changed from extens where updated_at>subdate(now(),interval 60 second);");
 while ($row = $stmt->fetch()) {
 $res+=$row['changed'];
 }
 
 
-$stmt = $pdo->query("select count(*) as changed from sips where updated_at>subdate(now(),interval 100 second);");
+$stmt = $pdo->query("select count(*) as changed from sips where updated_at>subdate(now(),interval 60 second);");
 while ($row = $stmt->fetch()) {
 $res+=$row['changed'];
 }
+
+$stmt = $pdo->query("select count(*) as changed from logs where created_at>subdate(now(),interval 60 second) and (event like '%sip' or event like '%exten');");
+while ($row = $stmt->fetch()) {
+$res+=$row['changed'];
+}
+
+
 
 }
 
 if($changedpart == "ROUTES"){
-$stmt = $pdo->query("select count(*) as changed from routes where updated_at>subdate(now(),interval 100 second);");
+$stmt = $pdo->query("select count(*) as changed from routes where updated_at>subdate(now(),interval 60 second);");
 while ($row = $stmt->fetch()) {
 $res+=$row['changed'];
 }
 
 
-$stmt = $pdo->query("select count(*) as changed from steps where updated_at>subdate(now(),interval 100 second);");
+$stmt = $pdo->query("select count(*) as changed from steps where updated_at>subdate(now(),interval 60 second);");
+while ($row = $stmt->fetch()) {
+$res+=$row['changed'];
+}
+
+$stmt = $pdo->query("select count(*) as changed from logs where created_at>subdate(now(),interval 60 second) and (event like '%route' or event like '%step' or event like 'createstep%' or event like 'updatestep%');");
 while ($row = $stmt->fetch()) {
 $res+=$row['changed'];
 }
@@ -34,13 +46,19 @@ $res+=$row['changed'];
 
 
 if($changedpart == "VOICE"){
-$stmt = $pdo->query("select count(*) as changed from sounds where updated_at>subdate(now(),interval 100 second);");
+$stmt = $pdo->query("select count(*) as changed from sounds where updated_at>subdate(now(),interval 60 second);");
 while ($row = $stmt->fetch()) {
 $res+=$row['changed'];
 }
 
 
-$stmt = $pdo->query("select count(*) as changed from mohs where updated_at>subdate(now(),interval 100 second);");
+$stmt = $pdo->query("select count(*) as changed from mohs where updated_at>subdate(now(),interval 60 second);");
+while ($row = $stmt->fetch()) {
+$res+=$row['changed'];
+}
+
+
+$stmt = $pdo->query("select count(*) as changed from logs where created_at>subdate(now(),interval 60 second) and (event like '%sound' or event like '%moh');");
 while ($row = $stmt->fetch()) {
 $res+=$row['changed'];
 }
@@ -78,6 +96,47 @@ while ($row = $stmt->fetch()) {
 return $res;
 }
 
+function buildTables($pdo,$ifname){
+$res = 0;
+$astbasedir="/root/pbxscripts/";
+$filename="bodytables.sh";
+$fileh=fopen($astbasedir.$filename,"w+");
+$headstr="#!/bin/sh\n\n";fputs($fileh,$headstr);
+
+$stmt = $pdo->query("select name,sipips,webips from accounts");
+while ($row = $stmt->fetch()) {
+ $name=$row['name'];
+ $sipips=$row['sipips'];
+ $webips=$row['webips'];
+$headstr="#$name\n";fputs($fileh,$headstr);
+$arrsip=explode("\n",$sipips);
+$arrweb=explode("\n",$webips);
+foreach ($arrsip as $value) {
+if(strlen($value)>0){
+$headstr="/usr/sbin/iptables -t filter -A INPUT -s ".trim($value)." -i $ifname -p udp --dport 5060 -j ACCEPT\n";
+fputs($fileh,$headstr);
+}
+}
+
+foreach ($arrweb as $value) {
+if(strlen($value)>0){
+$headstr="/usr/sbin/iptables -t filter -A INPUT -s ".trim($value)." -i $ifname -p tcp -m multiport --dports 80,443 -j ACCEPT\n";
+fputs($fileh,$headstr);
+}
+}
+
+#iptables -t filter -A INPUT -s 80.92.189.250 -i ens160 -p tcp -m multiport --dports 80,443 -j ACCEPT
+#iptables -t filter -A INPUT -s 94.43.149.30 -i ens160 -p udp --dport 5060 -j ACCEPT
+#echo "$name $sipips $webips\n";
+$headstr="#end of $name\n\n";fputs($fileh,$headstr);
+}
+
+fclose($fileh);
+exec("chmod 755 /root/pbxscripts/iptables.sh");
+exec("/root/pbxscripts/iptables.sh");
+return $res;
+}
+
 
 function makeExten($pdo){
 $astbasedir="/root/pbxscripts/astconf/";
@@ -90,7 +149,12 @@ $secret=$row['secret'];
 $account_id=$row['account_id'];
 $sipid=$row['sipid'];
 
+$inhouse=0;
+if($inhouse == 1){
+$extenid=$exten;
+} else {
 $extenid=$account_id.$exten;
+}
 
 $record=$row['record'];
 $calllimit=$row['calllimit'];
@@ -418,7 +482,12 @@ $confstr.="exten => _$id,n,Macro(playback,$playbacksound)\n";
 }
 
 if($event=="Voicemail"){
+$inhouse=0;
+if($inhouse == 1){
+$vmbox=substr($jsonsarr->vmbox,4);
+} else {
 $vmbox=$jsonsarr->vmbox;
+}
 $vmoptions=$jsonsarr->options;
 $confstr.="exten => _$id,n,Macro(voicemaili,$vmbox,$vmoptions)\n";
 }
@@ -431,7 +500,14 @@ $moh_id=$jsonsarr->moh_id;
 if($moh_id != "" ){
 $options=$options."m(".$jsonsarr->mohclass.")";
 }
-$sipextens="SIP/".str_replace("\r\n", "&SIP/", $extens);
+
+$inhouse=0;
+if($inhouse == 1){
+$sipextens="SIP/".str_replace("\r\n", "&SIP/",$extens);
+} else {
+$sipextens="SIP/".$account_id.str_replace("\r\n", "&SIP/",$account_id, $extens);
+}
+
 $confstr.="exten => _$id,n,Macro(dialringgroup,$sipextens,$timeout,$options)\n";
 }
 
@@ -458,7 +534,13 @@ $confstr.="exten => _$id,n,Macro(queue,$queuename,$queueoptions,$maxtime)\n";
 
 
 if($event=="Dial"){
+$inhouse=0;
+if($inhouse == 1){
 $exten_num=$account_id.$jsonsarr[3][1];
+} else {
+$exten_num=$jsonsarr[3][1];
+}
+
 $dialtimeout=$jsonsarr[1][1];
 $dialoptions=$jsonsarr[2][1];
 $confstr.="exten => _$id,n,Macro(dialexten,$exten_num,$dialtimeout,$dialoptions)\n";
@@ -491,6 +573,10 @@ $read6=$jsonsarr[9][1];
 $read7=$jsonsarr[10][1];
 $read8=$jsonsarr[11][1];
 $read9=$jsonsarr[12][1];
+
+$inhouse=0;
+$account_id_tmp=$account_id;
+if($inhouse == 1){$account_id="";}
 
 if(substr($read0,0,6) == "Exten_" ){
 $mread01="Dial";
@@ -652,7 +738,7 @@ $mread92="";
 }
 
 
-
+$account_id=$account_id_tmp;
 
 $confstr.="exten => _$id,n,Macro(mread,$playbacksound,$maxlen,$timeout,$mread01,$mread02,$mread11,$mread12,$mread21,$mread22,$mread31,$mread32,$mread41,$mread42,$mread51,$mread52,$mread61,$mread62,$mread71,$mread72,$mread81,$mread82,$mread91,$mread92,$id,$account_id)\n";
 }

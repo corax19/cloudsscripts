@@ -1,0 +1,6 @@
+#!/bin/sh
+
+iptables -F
+
+
+
