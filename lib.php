@@ -37,7 +37,7 @@ while ($row = $stmt->fetch()) {
 $res+=$row['changed'];
 }
 
-$stmt = $pdo->query("select count(*) as changed from logs where created_at>subdate(now(),interval 60 second) and (event like '%route' or event like '%step' or event like 'createstep%' or event like 'updatestep%');");
+$stmt = $pdo->query("select count(*) as changed from logs where created_at>subdate(now(),interval 60 second) and (event like '%sip' or event like '%route' or event like '%step' or event like 'createstep%' or event like 'updatestep%');");
 while ($row = $stmt->fetch()) {
 $res+=$row['changed'];
 }
