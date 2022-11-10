@@ -432,7 +432,7 @@ exten => _$id,n,Answer()
 ";
 $confstr="";
 fputs($fileh1,$sipstr);
-$stmt1 = $pdo->prepare("select id,name,record,day,daystart,daystop,hourstart,hourstop from routes where sip_id=? order by day desc;");
+$stmt1 = $pdo->prepare("select id,name,record,day,daystart,daystop,hourstart,hourstop from routes where sip_id=? order by day desc,name;");
 $stmt1->execute([$id]);
 while ($row1 = $stmt1->fetch()) {
 $routeid=$row1['id'];
@@ -444,9 +444,7 @@ $hourstart=$row1['hourstart'];
 $hourstop=$row1['hourstop'];
 
 $record=$row1['record'];
-
-if(strlen($name)==0){
-
+if((strlen($name)==0) || ($name == "DEFAULT") ){
 if(strlen($day)==0){
 $sipstr="exten => _$id,n,GotoIfTime($hourstart:00-$hourstop:00,$daystart-$daystop,*,*?routeitem".$routeid.")\n";
 fputs($fileh1,$sipstr);
