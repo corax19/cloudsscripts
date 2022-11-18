@@ -179,7 +179,7 @@ busylevel=$calllimit
 dtmfmode=rfc2833
 insecure=invite,port
 canreinvite=yes
-nat=yes
+nat=force_rport,comedia
 qualify=yes
 context=pbxout
 disallow=all
@@ -534,9 +534,9 @@ $confstr.="exten => _$id,n,Macro(queue,$queuename,$queueoptions,$maxtime)\n";
 if($event=="Dial"){
 $inhouse=0;
 if($inhouse == 1){
-$exten_num=$account_id.$jsonsarr[3][1];
-} else {
 $exten_num=$jsonsarr[3][1];
+} else {
+$exten_num=$account_id.$jsonsarr[3][1];
 }
 
 $dialtimeout=$jsonsarr[1][1];
