@@ -71,8 +71,23 @@ return $res;
 
 function getCDRForRec($pdo){
 $res = 0;
-$stmt = $pdo->query("select id,concat('/var/www/html/records/',accountcode) as dir,concat('/var/www/html/records/',accountcode,'/',uniqueid,'.wav') as filesrc,concat('/var/www/html/records/',accountcode,'/',replace(substring(start,1,7),'-',''),'/',replace(substring(start,1,10),'-',''),'/',uniqueid,'.mp3') as filedst,concat('/var/www/html/records/',accountcode,'/',replace(substring(start,1,7),'-',''),'/',replace(substring(start,1,10),'-','')) as dirdst,concat('/var/www/html/records/',accountcode,'/',replace(substring(start,1,7),'-','')) as dirdst2  from cdrs where created_at>subdate(now(),interval 6 minute);");
+$stmt = $pdo->query("select id,concat('/var/www/html/records/',accountcode) as dir,concat('/var/www/html/records/',accountcode,'/',uniqueid,'.wav') as filesrc,concat('/var/www/html/records/',accountcode,'/',replace(substring(start,1,7),'-',''),'/',replace(substring(start,1,10),'-',''),'/',uniqueid,'.mp3') as filedst,concat('/var/www/html/records/',accountcode,'/',replace(substring(start,1,7),'-',''),'/',replace(substring(start,1,10),'-','')) as dirdst,concat('/var/www/html/records/',accountcode,'/',replace(substring(start,1,7),'-','')) as dirdst2,if(dcontext='pbxin' and userfield is null,0,1) as setdid,dst,(select max(id) from cdrs b where b.uniqueid=a.uniqueid) as maxid,(select unix_timestamp(a.end)-unix_timestamp(c.start) from cdrs c where c.uniqueid=a.uniqueid order by id asc limit 1) as durdiff from cdrs a where created_at>subdate(now(),interval 6 minute);");
 while ($row = $stmt->fetch()) {
+
+
+ $id=$row['id'];
+ $maxid=$row['maxid'];
+ $durdiff=$row['durdiff'];
+ $setdid=$row['setdid'];
+ $dst=$row['dst'];
+ if ($setdid == 0 ) {
+ if ($id == $maxid ){
+ $stmtdid = $pdo->query("update cdrs set duration=duration+$durdiff,billsec=billsec+$durdiff,userfield=dst,dst=(select number from sips where id=$dst) where id=$id limit 1;");
+ } else {
+ $stmtdid = $pdo->query("update cdrs set userfield=uniqueid,uniqueid='',accountcode=0 where id=$id limit 1;");
+ }
+ }
+
  $dir=$row['dir'];
  $filesrc=$row['filesrc'];
  $filedst=$row['filedst'];
@@ -142,13 +157,14 @@ function makeExten($pdo){
 $astbasedir="/root/pbxscripts/astconf/";
 $filename="extens.conf";
 $fileh=fopen($astbasedir.$filename,"w+");
-$stmt = $pdo->query("select a.exten,a.secret,a.account_id,b.sipid,a.record,a.calllimit from extens a left join sips b on a.sip_id=b.id;");
+$stmt = $pdo->query("select a.exten,a.secret,a.account_id,b.sipid,a.record,a.calllimit,a.webrtc,a.name from extens a left join sips b on a.sip_id=b.id;");
 while ($row = $stmt->fetch()) {
 $exten=$row['exten'];
 $secret=$row['secret'];
 $account_id=$row['account_id'];
 $sipid=$row['sipid'];
-
+$webrtc=$row['webrtc'];
+$myname=$row['name'];
 $inhouse=0;
 if($inhouse == 1){
 $extenid=$exten;
@@ -172,6 +188,7 @@ username=$extenid
 host=dynamic
 secret=$secret
 setvar=sipid=$sipid
+setvar=myname=$myname
 setvar=accountid=$account_id
 setvar=record=$record
 call-limit=$calllimit
@@ -186,6 +203,18 @@ disallow=all
 allow=ulaw
 allow=alaw
 ";
+if($webrtc == "Yes"){
+$extenstr.="rtcp_mux=yes
+avpf=yes
+icesupport=yes
+dtlsenable=yes
+dtlsverify=no
+dtlsrekey=1160
+dtlscafile = /etc/asterisk/keys/ssl_certificate.crt
+dtlscertfile = /etc/asterisk/keys/ssl_certificate.pem
+dtlssetup=actpass
+";
+}
 
 fputs($fileh,$extenstr);
 //echo "$extenstr\n";
@@ -427,7 +456,8 @@ $sipid=$row['sipid'];
 $sipstr=";Number $number Account $account_id
 exten => _$id,1,Wait(0.25)
 exten => _$id,n,Set(CDR(accountcode)=${account_id})
-exten => _$id,n,Set(accountcode=${account_id})
+exten => _$id,n,Set(CHANNEL(accountcode)=${account_id})
+exten => _$id,n,Macro(checkcaller,\${CALLERID(NUMBER)},${account_id})
 exten => _$id,n,Answer()
 ";
 $confstr="";
